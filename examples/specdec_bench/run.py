@@ -293,7 +293,16 @@ if __name__ == "__main__":
         "--output_length", type=int, required=False, default=4096, help="Output length"
     )
     parser.add_argument("--draft_length", type=int, required=False, default=3, help="Draft length")
-    parser.add_argument("--block_size", type=int, required=False, default=None, help="DFlash block size (num_speculative_tokens). Use instead of --draft_length for DFLASH: block_size = draft_length + 1.")
+    parser.add_argument(
+        "--block_size",
+        type=int,
+        required=False,
+        default=None,
+        help=(
+            "DFlash block size (num_speculative_tokens). Use instead of --draft_length "
+            "for DFLASH: block_size = draft_length + 1."
+        ),
+    )
     parser.add_argument(
         "--tp_size", type=int, required=False, default=4, help="Tensor parallel size"
     )

@@ -196,8 +196,6 @@ def _checkpoint_provenance(model_dir):
 
 
 def _is_sensitive_key(key):
-    if not isinstance(key, str):
-        return False
     klow = key.lower()
     if klow in _SENSITIVE_KEY_ALLOWLIST:
         return False

@@ -1,8 +1,17 @@
-# Thor AGX (aarch64 / Tegra / Blackwell sm_110) image for the Cosmos-Reason 2
-# *edge compilation* notebook (06_cosmos_reason_thor_nvfp4.ipynb).
+# aarch64 / Blackwell edge image for the Cosmos-Reason 2 *edge compilation*
+# notebook (06_cosmos_reason_thor_nvfp4_edge.ipynb).
+#
+# Builds the SAME image for BOTH edge targets:
+#   * Thor AGX          — Tegra / Blackwell sm_110
+#   * DGX Spark (GB10)  — Grace-Blackwell sm_121
+# The base ships TORCH_CUDA_ARCH_LIST="... 12.0+PTX": sm_110 has native SASS and
+# sm_121 is reached by forward JIT of the 12.0 PTX at load time (verified — torch,
+# flash-attn and flashinfer all run on GB10). No Spark-specific build is needed.
+# The only runtime difference is the GPU flag: `--runtime nvidia` on Thor vs
+# `--gpus all` on Spark (see README_thor_spark.md).
 
-# The internal core-models/vLLM image below is an L4T/Thor engineering build that
-# ships the entire painful-to-build stack prebuilt and GPU-verified on Thor:
+# The internal core-models/vLLM image below is an L4T engineering build that
+# ships the entire painful-to-build stack prebuilt and GPU-verified:
 #   torch 2.13, vLLM 0.22.1, flash-attn, flashinfer, xformers, triton, CUDA 13.3,
 #   transformers 5.6.  We only layer thin, pure-Python additions on top.
 ARG BASE_IMAGE=gitlab-master.nvidia.com/dl/core-models/core-models/vllm:main_54155305

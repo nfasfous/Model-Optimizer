@@ -172,12 +172,12 @@ quantize cells are quick re-runs.
 
 | Section | What it does | Notes |
 |---|---|---|
-| §1–§3 | Toolchain, artifacts, NVFP4 best-practice layer selection | read + env check |
-| §4 | NVFP4 PTQ for original + distilled (`hf_ptq.py`) | ~1 min each |
-| §5 | Compile + serve with vLLM (`torch.compile` + CUDA graphs) | serve cmd in a terminal |
-| §6 | Quality: judge-free BLINK + RealWorldQA, 4-way | needs the HF token (step 4) |
+| §1–§3 | Toolchain, artifacts, NVFP4 layer selection + format visuals | read + env check |
+| §4 | NVFP4 PTQ for original + distilled (`hf_ptq.py`) | ~1 min each; live ticker, full logs → `/hf/logs/` |
+| §5 | Compile + serve with vLLM, then §5.1 shared serving helpers | helpers feed §6 + §7 |
+| §6 | Quality: judge-free BLINK + RealWorldQA, 4-way + qualitative showdown | live progress; needs the HF token (step 4) |
 | §7a | **Power telemetry — pick your platform cell** | **Thor INA3221 OR Spark NVML** |
-| §7 | Robotics batch-1: energy / reasoning-budget / responsiveness | driver → plot, ~10–12 min |
+| §7 | Robotics batch-1: energy / reasoning-budget / responsiveness | driver → plot, ~20–30 min, live progress + wattage |
 | §8 | Wrap-up + TensorRT-LLM reference | read |
 
 ### §7 power telemetry — the one notebook delta

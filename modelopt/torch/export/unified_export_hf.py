@@ -362,9 +362,11 @@ def requantize_resmooth_fused_llm_layers(model: torch.nn.Module):
                 [1, model.config.num_mel_bins, feature_extractor.nb_max_frames], dtype=model.dtype
             ).to(model.device)
 
-        if is_vl_model and "nemotron" in model_type:
-            # For Nemotron VL models, run optimization on just the language model/decoder.
-            # This avoids needing pixel_values for the vision encoder.
+        if is_vl_model:
+            # For VL models, run optimization on just the language model/decoder to avoid
+            # needing pixel_values for the vision encoder.  Calling the full VL model with
+            # only input_ids can also trigger device-mismatch errors in newer transformers
+            # (e.g. Qwen3-VL uses vmap-based causal masking that breaks without pixel_values).
             language_model_lineage = get_language_model_from_vl(model)
 
             if language_model_lineage is not None:
@@ -374,12 +376,15 @@ def requantize_resmooth_fused_llm_layers(model: torch.nn.Module):
                 )
                 # Pass use_cache=False to avoid KV cache issues in encoder-decoder models
                 language_model(fake_input, use_cache=False)
-            else:
+            elif "nemotron" in model_type:
                 raise ValueError(
                     f"Cannot extract language_model from Nemotron VL model (type: {model_type}). "
                     "This is required for requantization/resmoothing optimization. "
                     "Please ensure the model architecture is supported or file an issue."
                 )
+            else:
+                # Fallback: attempt the full model forward; may fail for some VL architectures.
+                model(fake_input)
         elif getattr(model.config, "is_encoder_decoder", False):
             # For other encoder-decoder models (non-VL), pass both encoder and decoder input ids
             model(fake_input, decoder_input_ids=decoder_fake_input)

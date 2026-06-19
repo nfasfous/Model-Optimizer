@@ -1,0 +1,83 @@
+# aarch64 / Blackwell Thor image for the Cosmos-Reason 2 *TensorRT Edge-LLM* edge
+# notebook (07_cosmos_reason_thor_trtedge_llm.ipynb).
+#
+# Unlike Dockerfile.thor (which layers on a prebuilt vLLM image), this layers on the
+# **TensorRT Edge-LLM** SDK image — NVIDIA's C++ LLM/VLM inference runtime for
+# Jetson / DRIVE Thor (JetPack 7.x, Blackwell sm_110). Build that base FIRST from
+# the Edge-LLM repo, then this image adds only ModelOpt (for §4 NVFP4 PTQ) and the
+# notebook tooling on top.
+#
+#   git clone https://github.com/NVIDIA/TensorRT-Edge-LLM.git
+#   cd TensorRT-Edge-LLM && ./experimental/docker/build_container.sh
+#       -> tags  tensorrt-edge-llm:experimental
+#          (C++ binaries llm_build/llm_inference/llm_bench/visual_build +
+#           experimental.server + tensorrt_edgellm, built for jetson-thor / sm_110)
+#
+# See README_thor_trtedge.md for the from-source (no-docker) build of the SDK.
+
+ARG BASE_IMAGE=tensorrt-edge-llm:experimental
+FROM ${BASE_IMAGE}
+
+# Where the Edge-LLM checkout lives inside the base image. The official Edge-LLM
+# container installs to /opt/TensorRT-Edge-LLM and sets EDGELLM_HOME there; we mirror
+# it as EDGE_LLM_HOME (the name the notebook reads). The image already puts
+# /opt/TensorRT-Edge-LLM + build/pybind on PYTHONPATH.
+ARG EDGE_LLM_HOME=/opt/TensorRT-Edge-LLM
+ENV EDGE_LLM_HOME=${EDGE_LLM_HOME}
+
+# ---------------------------------------------------------------------------
+# Notebook + git-lfs
+# ---------------------------------------------------------------------------
+RUN pip install --root-user-action ignore \
+        jupyterlab==4.4.10 \
+        ipywidgets==8.1.7 && \
+    jupyter labextension disable "@jupyterlab/apputils-extension:announcements"
+ENV SHELL=/bin/bash
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git-lfs && \
+    rm -rf /var/lib/apt/lists/*
+
+# Quieter student experience
+ENV PYTHONWARNINGS="ignore::FutureWarning,ignore::UserWarning,ignore::SyntaxWarning"
+
+# ---------------------------------------------------------------------------
+# ModelOpt from source (branch lmikaelyan/compress-vlms) — for §4 NVFP4 PTQ, the
+# one stage shared verbatim with notebook 06. --no-deps keeps pip from touching the
+# Edge-LLM base image's torch / TensorRT build; we then add only the pure-Python
+# deps the HF-PTQ / NVFP4 export path imports.
+# ---------------------------------------------------------------------------
+ARG MODELOPT_BRANCH=lmikaelyan/compress-vlms
+# NOTE: the Edge-LLM base image ships a *physical* nvidia-modelopt under
+# dist-packages that would shadow our editable install — remove the directory
+# itself (not just the .dist-info) so `import modelopt` resolves to /opt/Model-Optimizer.
+RUN git clone https://github.com/NVIDIA/Model-Optimizer.git /opt/Model-Optimizer && \
+    cd /opt/Model-Optimizer && git checkout ${MODELOPT_BRANCH} && \
+    rm -rf /usr/local/lib/python3.12/dist-packages/modelopt && \
+    find / -name 'nvidia_modelopt-*.dist-info' -exec rm -rf {} + 2>/dev/null || true && \
+    python -m pip install --root-user-action ignore -e . --no-deps && \
+    python -m pip install --root-user-action ignore \
+        omegaconf pydantic rich pulp cppimport scipy ml_dtypes \
+        "nvidia-ml-py>=12" regex "accelerate>=1.0.0" "datasets>=3.0.0" \
+        matplotlib   # for the robotics benchmark charts (§7)
+
+# ---------------------------------------------------------------------------
+# The experimental container's build.sh compiles only the plugin + pybind
+# runtime — NOT the example CLIs (llm_build / llm_inference / llm_bench /
+# visual_build) that §5–§7 shell out to. The build/ is already configured, so
+# build those four targets here (quick incremental compile against the runtime).
+# ---------------------------------------------------------------------------
+RUN cmake --build ${EDGE_LLM_HOME}/build \
+        --target llm_build llm_inference llm_bench visual_build \
+        --parallel "$(nproc)"
+
+# ---------------------------------------------------------------------------
+# Native accuracy-harness deps (§6 MMStar / MMMU via prepare_dataset.py). The
+# Edge-LLM repo ships its own requirements list; fall back to the essentials if the
+# path differs in your SDK image.
+# ---------------------------------------------------------------------------
+RUN python -m pip install --root-user-action ignore \
+        -r ${EDGE_LLM_HOME}/examples/accuracy/requirements.txt 2>/dev/null || \
+    python -m pip install --root-user-action ignore datasets pillow regex
+
+WORKDIR /opt/Model-Optimizer/examples/megatron_bridge/notebooks
